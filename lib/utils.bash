@@ -2,7 +2,6 @@
 
 set -euo pipefail
 
-# TODO: Ensure this is the correct GitHub homepage where releases can be downloaded for amass.
 GH_REPO="https://github.com/OWASP/Amass"
 TOOL_NAME="amass"
 TOOL_TEST="amass -help"
@@ -31,18 +30,53 @@ list_github_tags() {
 }
 
 list_all_versions() {
-  # TODO: Adapt this. By default we simply list the tag names from GitHub releases.
-  # Change this function if amass has other means of determining installable versions.
-  list_github_tags
+  # List the tag names from GitHub releases.
+  local tags=$(list_github_tags)
+  echo "$tags"
+}
+
+get_arch() {
+  local arch=""
+
+  case "$(uname -m)" in
+  x86_64 | amd64) arch="amd64" ;;
+  i686 | i386) arch="i386" ;;
+  armv6l | armv7l) arch="arm" ;;
+  aarch64 | arm64) arch="arm64" ;;
+  *)
+    fail "Arch '$(uname -m)' not supported!"
+    ;;
+  esac
+
+  echo -n $arch
+}
+
+get_platform() {
+  local platform=""
+
+  case "$(uname | tr '[:upper:]' '[:lower:]')" in
+  darwin) platform="macos" ;;
+  linux) platform="linux" ;;
+  windows) platform="windows" ;;
+  freebsd) platform="freebsd" ;;
+  *)
+    fail "Platform '$(uname -m)' not supported!"
+    ;;
+  esac
+
+  echo -n $platform
 }
 
 download_release() {
-  local version filename url
-  version="$1"
-  filename="$2"
+  local version="$1"
+  local version_path="${version//extended_/}"
+  local filename="$2"
+  local platform=$(get_platform)
+  local arch=$(get_arch)
+  local major_version=$(echo "$version" | awk -F. '{print $1}')
+  local minor_version=$(echo "$version" | awk -F. '{print $2}')
 
-  # TODO: Adapt the release URL convention for amass
-  url="$GH_REPO/archive/v${version}.tar.gz"
+  local url="${GH_REPO}/releases/download/v${version_path}/amass_${platform}_${arch}.zip"
 
   echo "* Downloading $TOOL_NAME release $version..."
   curl "${curl_opts[@]}" -o "$filename" -C - "$url" || fail "Could not download $url"
@@ -61,7 +95,7 @@ install_version() {
     mkdir -p "$install_path"
     cp -r "$ASDF_DOWNLOAD_PATH"/* "$install_path"
 
-    # TODO: Assert amass executable exists.
+    # Assert amass executable exists.
     local tool_cmd
     tool_cmd="$(echo "$TOOL_TEST" | cut -d' ' -f1)"
     test -x "$install_path/$tool_cmd" || fail "Expected $install_path/$tool_cmd to be executable."
